@@ -145,4 +145,35 @@ RESPONSE_TEXT
       subject.extra_attributes.should == expected
     end
   end
+
+  context "When parsing extra attributes from LDAP attributes" do
+    let(:response_text) do
+      <<RESPONSE_TEXT
+<?xml version="1.0" encoding="UTF-8"?>
+<cas:serviceResponse xmlns:cas="http://www.yale.edu/tp/cas">
+  <cas:authenticationSuccess>
+    <cas:user>myuser</cas:user>
+    <cas:attributes>
+      <cas:attribute>
+        <cas:name>name</cas:name>
+        <cas:value>My User</cas:value>
+      </cas:attribute>
+      <cas:attribute>
+        <cas:name>email</cas:name>
+        <cas:value>myuser@mail.example.com</cas:value>
+      </cas:attribute>
+    </cas:attributes>
+  </cas:authenticationSuccess>
+</cas:serviceResponse>
+RESPONSE_TEXT
+    end
+
+    subject { CASClient::ValidationResponse.new response_text }
+
+    it "sets attributes for other type of format" do
+      expected = {"name" => 'My User', "email" => 'myuser@mail.example.com'}
+      subject.user.should == 'myuser'
+      subject.extra_attributes.should == expected
+    end
+  end
 end

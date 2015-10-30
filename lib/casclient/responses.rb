@@ -65,26 +65,50 @@ module CASClient
         end
 
         @extra_attributes = {}
-        @xml.elements.to_a('//cas:authenticationSuccess/cas:attributes/* | //cas:authenticationSuccess/*[local-name() != \'proxies\' and local-name() != \'proxyGrantingTicket\' and local-name() != \'user\' and local-name() != \'attributes\']').each do |el|
-          inner_text = el.cdatas.length > 0 ? el.cdatas.join('') : el.text
-          name = el.name
-          unless (attrs = el.attributes).empty?
-            name       = attrs['name']
-            inner_text = attrs['value']
-          end
-          @extra_attributes.merge! name => inner_text
+        if not @xml.elements.to_a('//cas:authenticationSuccess/cas:attributes/cas:attribute').empty?
+          parse_extra_attributes
+        else
+          parse_extra_attributes_default(options)
         end
 
-        # unserialize extra attributes
-        @extra_attributes.each do |k, v|
-          @extra_attributes[k] = parse_extra_attribute_value(v, options[:encode_extra_attributes_as])
-        end
+        #parse_extra_attributes_default(options)
+
       elsif is_failure?
         @failure_code = @xml.elements['//cas:authenticationFailure'].attributes['code']
         @failure_message = @xml.elements['//cas:authenticationFailure'].text.strip
       else
         # this should never happen, since the response should already have been recognized as invalid
         raise BadResponseException, "BAD CAS RESPONSE:\n#{raw_text.inspect}\n\nXML DOC:\n#{doc.inspect}"
+      end
+    end
+
+    # I need to parse attributes pulled from LDAP as seen on:
+    # https://issues.jasig.org/browse/CAS-655
+    # https://wiki.jasig.org/display/CASUM/Attributes
+    #
+    # The default parser is unable to get them
+    def parse_extra_attributes
+      @xml.elements.to_a('//cas:authenticationSuccess/cas:attributes/cas:attribute').each do |el|
+        k = el.elements["cas:name"].text.strip
+        v = el.elements["cas:value"].text.strip
+        @extra_attributes[k] = v
+      end
+    end
+
+    def parse_extra_attributes_default(options)
+      @xml.elements.to_a('//cas:authenticationSuccess/cas:attributes/* | //cas:authenticationSuccess/*[local-name() != \'proxies\' and local-name() != \'proxyGrantingTicket\' and local-name() != \'user\' and local-name() != \'attributes\']').each do |el|
+        inner_text = el.cdatas.length > 0 ? el.cdatas.join('') : el.text
+        name = el.name
+        unless (attrs = el.attributes).empty?
+          name       = attrs['name']
+          inner_text = attrs['value']
+        end
+        @extra_attributes.merge! name => inner_text
+      end
+
+      # unserialize extra attributes
+      @extra_attributes.each do |k, v|
+        @extra_attributes[k] = parse_extra_attribute_value(v, options[:encode_extra_attributes_as])
       end
     end
 
